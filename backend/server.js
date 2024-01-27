@@ -8,20 +8,19 @@ const PORT = 4000;
 const mongoURL = "mongodb://localhost:27017";
 const dbName = "quirknotes";
 
-// Connect to MongoDB
 let db;
 
 async function connectToMongo() {
-  const client = new MongoClient(mongoURL);
+    const client = new MongoClient(mongoURL);
 
-  try {
+    try {
     await client.connect();
     console.log("Connected to MongoDB");
 
     db = client.db(dbName);
-  } catch (error) {
+    } catch (error) {
     console.error("Error connecting to MongoDB:", error);
-  }
+    }
 }
 
 connectToMongo();
@@ -29,15 +28,14 @@ connectToMongo();
 // Open Port
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
-  });
+});
 
-// Collections to manage
+  // Collections to manage
 const COLLECTIONS = {
     notes: "notes",
     users: "users",
-  };
+};
 
-// Register a new user
 app.post("/registerUser", express.json(), async (req, res) => {
     try {
       const { username, password } = req.body;
@@ -72,7 +70,7 @@ app.post("/registerUser", express.json(), async (req, res) => {
     }
   });
 
-// Log in an existing user
+  // Log in an existing user
 app.post("/loginUser", express.json(), async (req, res) => {
     try {
       const { username, password } = req.body;
@@ -170,3 +168,97 @@ app.get("/getNote/:noteId", express.json(), async (req, res) => {
       res.status(500).json({ error: error.message });
     }
   });
+
+app.get("/getAllNotes", express.json(), async(req, res) => {
+    try {
+        const token = req.headers.authorization.split(" ")[1];
+        jwt.verify(token, "secret-key", async (err, decoded) => {
+            if (err) {
+                return res.status(401).send("Unauthorized.");
+            }
+        
+        const collection = db.collection(COLLECTIONS.notes);
+        const data = await collection.find({
+          username: decoded.username,
+        }).toArray();
+        res.json({ response: data });
+    });
+    } catch (error) {
+        res.status(500).json({error: error.message});
+    }
+});
+
+// Retrieve a note belonging to the user
+app.delete("/deleteNote/:noteId", express.json(), async (req, res) => {
+    try {
+      // Basic param checking
+      const noteId = req.params.noteId;
+      if (!ObjectId.isValid(noteId)) {
+        return res.status(400).json({ error: "Invalid note ID." });
+      }
+  
+      // Verify the JWT from the request headers
+      const token = req.headers.authorization.split(" ")[1];
+      jwt.verify(token, "secret-key", async (err, decoded) => {
+        if (err) {
+          return res.status(401).send("Unauthorized.");
+        }
+  
+        // Find note with given ID
+        const collection = db.collection(COLLECTIONS.notes);
+        const data = await collection.deleteOne({
+          username: decoded.username,
+          _id: new ObjectId(noteId),
+        });
+        if (!data) {
+          return res
+            .status(404)
+            .json({ error: "Unable to find note with given ID." });
+        }
+        res.json({ response: "Document with ID " + new ObjectId(noteId) + " properly deleted" });
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.patch("/editNote/:noteId", express.json(), async (req, res) => {
+    try {
+      // Basic param checking
+      const noteId = req.params.noteId;
+      if (!ObjectId.isValid(noteId)) {
+        return res.status(400).json({ error: "Invalid note ID." });
+      }
+
+      const { title, content } = req.body;
+      if (!title || !content) {
+        return res
+          .status(400)
+          .json({ error: "Title and content are both required." });
+      }
+  
+      // Verify the JWT from the request headers
+      const token = req.headers.authorization.split(" ")[1];
+      jwt.verify(token, "secret-key", async (err, decoded) => {
+        if (err) {
+          return res.status(401).send("Unauthorized.");
+        }
+  
+        // Find note with given ID
+        const collection = db.collection(COLLECTIONS.notes);
+        const data = await collection.updateOne(
+          {username: decoded.username, _id: new ObjectId(noteId)},
+          {$set: {title : title, content : content}}
+        );
+        if (!data) {
+          return res
+            .status(404)
+            .json({ error: "Unable to find note with given ID." });
+        }
+        res.json({ response: data });
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
