@@ -210,12 +210,12 @@ app.delete("/deleteNote/:noteId", express.json(), async (req, res) => {
           username: decoded.username,
           _id: new ObjectId(noteId),
         });
-        if (!data) {
+        if (data.deletedCount === 0) {
           return res
             .status(404)
             .json({ error: "Unable to find note with given ID." });
         }
-        res.json({ response: "Document with ID " + new ObjectId(noteId) + " properly deleted" });
+        return res.json({ response: "Document with ID " + new ObjectId(noteId) + " properly deleted" });
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
@@ -231,11 +231,20 @@ app.delete("/deleteNote/:noteId", express.json(), async (req, res) => {
       }
 
       const { title, content } = req.body;
-      if (!title || !content) {
-        return res
-          .status(400)
-          .json({ error: "Title and content are both required." });
+      if (!title && !content) {
+        return res.status(400).json({ error: "No title or content" });
       }
+
+      let note = {}
+        if (title) {
+          note.title = title;
+        }
+        if (content) {
+          note.content = content;
+        }
+        const newNote = {
+          $set: note
+        }
   
       // Verify the JWT from the request headers
       const token = req.headers.authorization.split(" ")[1];
@@ -246,16 +255,17 @@ app.delete("/deleteNote/:noteId", express.json(), async (req, res) => {
   
         // Find note with given ID
         const collection = db.collection(COLLECTIONS.notes);
+
         const data = await collection.updateOne(
           {username: decoded.username, _id: new ObjectId(noteId)},
-          {$set: {title : title, content : content}}
+          newNote
         );
-        if (!data) {
+        if (data.modifiedCount === 0) {
           return res
             .status(404)
             .json({ error: "Unable to find note with given ID." });
         }
-        res.json({ response: data });
+        return res.json({ response: "Document with ID " + new ObjectId(noteId) + " properly updated" });
       });
     } catch (error) {
       res.status(500).json({ error: error.message });
